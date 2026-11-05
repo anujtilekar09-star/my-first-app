@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Launchpad — Find your next chapter</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside>
+    <a class="brand" href="/">
+      ✳ <span>launchpad<span class="dot">.</span></span>
+    </a>
+
+    <div class="workspace">
+      A
+      <span>Your workspace<small>Personal workspace</small></span>
+      ⌄
+    </div>
+
+    <div class="navlabel">BUILD YOUR NEXT CHAPTER</div>
+
+    <nav>
+      <button data-view="ideas" class="active">
+        ◈ <span>Discover ideas</span><small>01</small>
+      </button>
+      <button data-view="ikigai">
+        ◎ <span>Find your Ikigai</span><small>02</small>
+      </button>
+      <button data-view="prospects">
+        ▤ <span>Build your list</span><small>03</small>
+      </button>
+    </nav>
+
+    <div class="sidecard">
+      <span>✦ A little direction goes a long way.</span>
+      <p>
+        From what you love to your first conversation.
+        One step at a time.
+      </p>
+      <button id="journey">Find my starting point ↗</button>
+    </div>
+
+    <div class="sidebottom">
+      <span class="avatar">Y</span>
+      Your personal launchpad
+      <span>↗</span>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <span id="breadcrumb">
+        Workspace <b>/</b> Discover ideas
+      </span>
+      <span class="saved">
+        <i></i> Saved on this device
+      </span>
+    </header>
+
+    <div id="app"></div>
+
+    <footer>
+      Made for curious people ready to build something.
+      <span>SMALL STEPS. REAL POSSIBILITIES.</span>
+    </footer>
+  </main>
+
+  <dialog id="modal">
+    <div id="modalbody"></div>
+    <button class="close" aria-label="Close dialog">×</button>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
