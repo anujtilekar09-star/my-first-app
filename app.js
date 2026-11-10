@@ -1,79 +1,73 @@
-import {rankIdeas,prospectScore,csv,draft,profileKey} from './logic.js';
-const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let stored;try{stored=JSON.parse(localStorage.getItem('launchpad-v1'))}catch{}
-let state={profile:{},selected:'',saved:[],prospects:[],library:[],research:null,...stored};
-if(!Array.isArray(state.library))state.library=[];
-let view='ideas',hours=80,ocean='all',search='',hot=false,busy=false,researchError='',apiConfigured=null;
-const hasFreshResearch=()=>state.research&&profileKey(state.research.profile)===profileKey(state.profile);
-const catalog=()=>hasFreshResearch()?state.research.ideas:[];
-const offerIdeas=()=>[...new Map([...catalog(),...state.library].map(i=>[i.id,i])).values()];
-const current=()=>offerIdeas().find(i=>i.id===state.selected)||catalog()[0]||null;
-function save(){try{localStorage.setItem('launchpad-v1',JSON.stringify(state));}catch{toast('Storage is full or unavailable. Export your work before closing.');}}
-function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),4000)}
-function download(name,body,type='text/plain'){const u=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
-function modal(html){$('#modalbody').innerHTML=html;$('#modal').showModal()}$('.close').onclick=()=>$('#modal').close();$('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').close()};
-function go(v){view=v;render();window.scrollTo(0,0)}document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>go(b.dataset.view));$('#journey').onclick=()=>go('ikigai');
-const heading=(label,title,sub,action='')=>`<div class="heading"><div><div class="eyebrow">${label}</div><h1>${title}</h1><p>${sub}</p></div>${action}</div>`;
-function render(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#breadcrumb').innerHTML=`Workspace <b>/</b> ${view==='ideas'?'Discover ideas':view==='ikigai'?'Find your Ikigai':'Build your list'}`;if(view==='ideas')renderIdeas();else if(view==='ikigai')renderIkigai();else renderProspects();}
-function researchNotice(){
-  if(busy)return '<div class="research-notice" role="status" aria-live="polite">✦ Researching buyer needs, competing offers, and opportunities for your profile. This can take a few minutes. You can leave this tab open.</div>';
-  if(researchError)return `<div class="research-notice error" role="alert">${esc(researchError)} Your answers and previous reports are saved.</div>`;
-  if(apiConfigured===false)return '<div class="research-notice">Live research needs to be connected by the app owner. You can fill in and save your profile now. No example ideas will be substituted for market research.</div>';
-  return '';
+export function profileKey(profile = {}) {
+  const fields = [
+    'love',
+    'good',
+    'need',
+    'paid',
+    'learn',
+    'market',
+    'budget',
+    'experience'
+  ];
+
+  return JSON.stringify(
+    fields
+      .map(key => String(profile[key] || '').trim())
+      .concat(Number(profile.hours) || 10)
+  );
 }
-const sourcesHTML=i=>`<div class="sources">${i.sources.map(s=>`<div><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)} ↗</a><small>${esc(s.publishedDate)}</small><p>${esc(s.evidence)}</p></div>`).join('')}</div>`;
-function renderIdeas(){
-  const ranked=rankIdeas(state.profile,hours,ocean,catalog());
-  $('#app').innerHTML=heading('RESEARCH YOUR NEXT CHAPTER','Fresh opportunities. <em>Built around you.</em>','Discover business ideas researched for your interests, skills, and market.',`<button class="primary" id="personalize">✦ ${catalog().length?'Update my profile':'Find my business ideas'}</button>`)+
-  `<section class="hero"><div><span class="pill">✦ YOUR SKILLS. YOUR MARKET.</span><h2>A business that fits your life.<br>Beyond the usual ideas.</h2><p>Start with what you love and what you know.<br>Explore where real buyers need your help.</p><button id="heroikigai">Explore my Ikigai ↗</button></div><div class="venn" aria-label="Ikigai: interests, strengths, needs, income"><div class="circle c1">What you<br>love</div><div class="circle c2">What you’re<br>good at</div><div class="circle c3">What the<br>world needs</div><div class="circle c4">What you can<br>be paid for</div><div class="centerstar">✳</div></div></section>`+
-  researchNotice()+`<div class="sectiontitle"><div><h2>Your researched opportunities <span>${ranked.length}</span></h2><p>${hasFreshResearch()?`Researched ${esc(new Date(state.research.researchedAt).toLocaleString())} · Open each idea to review its evidence.`:'Submit your profile to generate opportunities from current web research.'}</p></div><div><button class="plain" id="regenerate" ${busy?'disabled':''}>${busy?'Researching…':'↻ Research new ideas'}</button><button class="plain" id="report" ${catalog().length?'':'disabled'}>↓ Export report</button></div></div>`+
-  (catalog().length?`<p class="research-summary">${esc(state.research.summary)}</p><div class="filters"><div class="tabs"><button data-ocean="all" class="${ocean==='all'?'chosen':''}">All opportunities</button><button data-ocean="blue" class="${ocean==='blue'?'chosen':''}">Lower competition estimates</button></div><label>Time available <select id="hours"><option value="80">Any schedule</option><option value="8">Up to 8h / week</option><option value="10">Up to 10h / week</option></select></label></div><p class="disclosure">Scores, effort and pricing are researcher estimates, not measured market statistics. Sources support the evidence described; business success still needs testing.</p>`:'')+
-  `<div class="cards">${ranked.map(i=>`<article class="idea"><div class="cardtop"><span class="ideaicon ${i.color}">${i.icon}</span><button class="bookmark ${state.saved.includes(i.id)?'marked':''}" data-save="${esc(i.id)}" aria-label="Save ${esc(i.name)}">${state.saved.includes(i.id)?'♥':'♡'}</button></div><div class="tag">${esc(i.tag)}</div><h3>${esc(i.name)}</h3><p>${esc(i.description)}</p><div class="ocean ${i.competition<50?'blueocean':''}">Estimated fit <span>${i.score}<small>/100</small></span></div><p class="rationale">${esc(i.rationale)}</p><div class="metrics"><div><small>PRICING / BILLING ESTIMATE</small><b>${esc(i.price)}</b></div><div><small>WEEKLY EFFORT</small><b>~${i.hours}h</b></div></div><p class="muted">${i.sources.length} supporting source${i.sources.length===1?'':'s'}</p><button class="cardaction" data-detail="${esc(i.id)}">Review idea & evidence <span>↗</span></button></article>`).join('')}</div>`+
-  (!ranked.length?`<div class="panel empty"><span>✦</span><h3>${catalog().length?'No ideas match these filters.':'Your next idea isn’t on a fixed list.'}</h3><p>${catalog().length?'Try another time or competition filter.':state.research?'Your profile has changed. Submit it again to research matching opportunities.':'Tell us your interests and skills. We’ll research relevant opportunities across industries, with sources and a practical first offer.'}</p><button id="empty-profile" class="primary">${catalog().length?'Update my preferences':'Complete my profile →'}</button></div>`:'');
-  $('#personalize').onclick=$('#heroikigai').onclick=()=>go('ikigai');$('#regenerate').onclick=()=>{if(!state.profile.love?.trim()||!state.profile.good?.trim())go('ikigai');else runResearch()};$('#report').onclick=exportReport;
-  if($('#empty-profile'))$('#empty-profile').onclick=()=>go('ikigai');
-  if($('#hours')){$('#hours').value=hours;$('#hours').onchange=e=>{hours=+e.target.value;renderIdeas()}}
-  document.querySelectorAll('[data-ocean]').forEach(b=>b.onclick=()=>{ocean=b.dataset.ocean;renderIdeas()});
-  document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{const id=b.dataset.save;state.saved=state.saved.includes(id)?state.saved.filter(x=>x!==id):[...state.saved,id];state.library=offerIdeas().filter(i=>state.saved.includes(i.id)||i.id===state.selected);save();renderIdeas()});
-  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(b.dataset.detail));
+
+export function rankIdeas(
+  profile = {},
+  hours = 80,
+  ocean = 'all',
+  catalog = []
+) {
+  return catalog
+    .filter(idea =>
+      idea.hours <= hours &&
+      (ocean !== 'blue' || idea.competition < 50)
+    )
+    .sort((a, b) => b.score - a.score);
 }
-function detail(id){const i=offerIdeas().find(x=>x.id===id);if(!i)return;
-  modal(`<div class="eyebrow">PERSONALIZED OPPORTUNITY · RESEARCHED</div><h2>${esc(i.name)}</h2><p>${esc(i.description)}</p><h4>Why it fits you</h4><p>${esc(i.rationale)}</p><h4>Who could buy</h4><p>${esc(i.buyer)}</p><h4>Demand evidence</h4><p>${esc(i.demandEvidence)}</p><h4>Competition & uncertainty</h4><p>${esc(i.competitionEvidence)}</p><h4>Your first offer</h4><p>${esc(i.deliver)}</p><h4>Pricing hypothesis</h4><p>${esc(i.price)} · ${esc(i.pricingBasis)}</p><h4>Skills to develop</h4><p>${esc(i.learn)}</p><div class="signalgrid">${[['Demand',i.demand],['Competition',i.competition],['Ease of starting',i.simplicity],['Speed to first client',i.speed]].map(([n,v])=>`<label>${n}<b>${v}/100</b><progress max="100" value="${v}"></progress></label>`).join('')}</div><p class="muted">These are qualitative AI assessments. Low competition is a hypothesis, not a verified market measurement.</p><h4>Your first steps</h4><ol>${i.firstSteps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol><h4>Sources & what they support</h4>${sourcesHTML(i)}<button class="primary" id="choose">Use this idea →</button>`);
-  $('#choose').onclick=()=>{state.selected=id;state.library=offerIdeas().filter(x=>state.saved.includes(x.id)||x.id===id);save();$('#modal').close();go('prospects')};
+
+export function prospectScore(prospect) {
+  return Math.min(
+    100,
+    30 +
+      (prospect.signals?.length || 0) * 18 +
+      (prospect.website ? 8 : 0) +
+      (prospect.contact ? 8 : 0)
+  );
 }
-function renderIkigai(){const p=state.profile;
-  const questions=[['love','♡','What do you love?','Interests, industries, activities, and problems that excite you','Gardening, sports, education, accessibility…'],['good','✧','What are you good at?','Actual skills, experience, and strengths you can use','Teaching, spreadsheets, cooking, engineering…'],['need','◎','Who do you want to help?','Optional: an audience or problem you care about','Parents, small manufacturers, remote teams…'],['paid','◇','What outcome could you help deliver?','Optional: leave blank if you need help discovering this','Save time, build a skill, reduce waste…'],['learn','↗','What would you like to learn?','Optional: skills you’re willing to practice','Product design, finance, a trade…']];
-  $('#app').innerHTML=heading('FIND YOUR DIRECTION','Good business starts <em>with you.</em>','Your answers guide fresh research across the market, beyond the ideas in the video.')+researchNotice()+
-  `<div class="ikigai-layout"><form id="profile" class="panel"><h2>Your interests & skills</h2><p class="muted">Give concrete examples so the research can find a specific fit.</p>${questions.map(([key,ic,title,help,placeholder])=>`<label class="field"><span>${ic} ${title}</span><small>${help}</small><textarea name="${key}" rows="2" placeholder="${placeholder}" ${['love','good'].includes(key)?'required':''} maxlength="2000">${esc(p[key]||'')}</textarea></label>`).join('')}${[['market','Target market / location','Country, city, language, or online market'],['budget','Startup budget','Amount and currency, or no upfront budget'],['experience','Experience & qualifications','Beginner, past jobs, certifications…']].map(([key,label,placeholder])=>`<label class="field"><span>${label}</span><input name="${key}" value="${esc(p[key]||'')}" placeholder="${placeholder}" maxlength="2000"></label>`).join('')}<label class="field"><span>Hours available each week</span><input name="hours" type="number" min="1" max="80" value="${esc(p.hours||10)}" required></label><p class="muted">Submitting sends these answers to our AI research provider to search for matching opportunities. Avoid including private information.</p><button class="primary" ${busy?'disabled':''}>${busy?'Researching your market…':'Research my business ideas ✦'}</button></form><div id="fit" class="panel fit" aria-live="polite"></div></div>`;
-  $('#profile').oninput=()=>{state.profile=Object.fromEntries(new FormData($('#profile')));save();showFit()};
-  $('#profile').onsubmit=e=>{e.preventDefault();state.profile=Object.fromEntries(new FormData(e.target));save();runResearch()};showFit();
+
+export function csv(rows) {
+  return rows
+    .map(row =>
+      row
+        .map(value =>
+          '"' +
+          String(value ?? '').replaceAll('"', '""') +
+          '"'
+        )
+        .join(',')
+    )
+    .join('\r\n');
 }
-function showFit(){if(!$('#fit'))return;
-  const ranked=rankIdeas(state.profile,80,'all',catalog());
-  $('#fit').innerHTML=`<div class="eyebrow">YOUR PERSONAL COMPASS</div><h2>${busy?'Finding opportunities that fit.':ranked.length?'Your researched shortlist.':'Start with your strengths.'}</h2><p>${busy?'Searching current buyer needs and comparing opportunities to your experience, interests, time and budget.':ranked.length?'Generated for your complete profile, with evidence you can review.':state.research?'Your answers have changed. Submit this form to research opportunities for the updated profile.':'There is no fixed catalog. Complete the form to research specific businesses you could realistically start.'}</p>${ranked.map(i=>`<button class="fititem" data-fit="${esc(i.id)}"><span>✦ ${esc(i.name)}</span><b>${i.score} →</b></button>`).join('')}${ranked.length?'<button class="plain" id="fitexport">↓ Download my report</button>':''}`;
-  document.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>detail(b.dataset.fit));if($('#fitexport'))$('#fitexport').onclick=exportReport;
+
+export function draft(prospect, idea) {
+  return `Subject: A small idea for ${prospect.company}
+
+Hi ${prospect.contact || 'there'},
+
+${
+  prospect.signals?.length
+    ? `I noticed your note about ${prospect.signals.join(' and ')}. `
+    : ''
+}I’m exploring ways to help ${idea.buyer.toLowerCase()} with ${idea.name.toLowerCase()}.
+
+I’d like to put together ${idea.deliver.toLowerCase()} tailored to ${prospect.company}. Would you be open to seeing a short sample?
+
+Best,
+[Your name]`;
 }
-async function runResearch(){if(busy)return;
-  const submitted={...state.profile};busy=true;researchError='';render();
-  try{
-    const response=await fetch('/api/ideas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:submitted}),signal:AbortSignal.timeout(190000)});
-    let data;try{data=await response.json()}catch{throw new Error('The research server returned an unreadable response. Please try again.')}
-    if(!response.ok)throw new Error(data.error||'Research could not complete. Please try again.');
-    if(!Array.isArray(data.ideas)||!data.ideas.length)throw new Error('No supported ideas were returned. Please refine your profile and try again.');
-    if(profileKey(submitted)!==profileKey(state.profile)){toast('Your profile changed during research. Submit your updated answers to generate matching results.');return;}
-    state.library=offerIdeas().filter(i=>state.saved.includes(i.id)||i.id===state.selected);
-    state.research=data;state.selected=data.ideas[0].id;state.library.push(data.ideas[0]);apiConfigured=true;hours=80;ocean='all';save();toast('Your personalized market research is ready.');
-  }catch(error){researchError=error.name==='TimeoutError'?'Research timed out. Your profile is saved; please try again.':error.message;}
-  finally{busy=false;render();}
-}
-function renderProspects(){const filtered=state.prospects.filter(p=>(!hot||prospectScore(p)>=80)&&`${p.company} ${p.contact}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>prospectScore(b)-prospectScore(a));$('#app').innerHTML=heading('STEP 03 · START A CONVERSATION','Your first clients <em>start here.</em>','Build a focused list. Look for real signals. Reach out with something useful.',`<button class="primary" id="add">＋ Add prospect</button>`)+`<section class="panel offer"><div><div class="eyebrow">YOUR SELECTED OPPORTUNITY</div><h2>${current()?.icon||"◎"} ${esc(current()?.name||"Choose a researched idea")}</h2><p>${esc(current()?.buyer||"Complete your interests and skills form to generate opportunities.")}</p></div><select id="offer"><option value="">Choose an idea</option>${offerIdeas().map(i=>`<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}</select></section><div class="stats"><div><span>▤</span><p><b>${state.prospects.length}</b> Total prospects</p></div><div><span>♨</span><p><b>${state.prospects.filter(p=>prospectScore(p)>=80).length}</b> Strong fit</p></div><div><span>✓</span><p><b>${state.prospects.filter(p=>p.status==='Contacted').length}</b> Contacted</p></div><div><span>↗</span><p><b>${state.prospects.filter(p=>p.status==='Replied').length}</b> Replied</p></div></div><div class="sectiontitle"><div><h2>Your prospect list</h2><p>Ranked using the buying signals you record.</p></div><div><button class="plain" id="sample">Load examples</button><button class="plain" id="csv">↓ Export CSV</button></div></div><div class="filters"><input id="search" placeholder="Search company or contact…" aria-label="Search prospects" value="${esc(search)}"><button id="hot" class="${hot?'chosen':''}">♨ Strong fit only</button></div><div class="tablewrap"><table><thead><tr><th>COMPANY / CONTACT</th><th>BUYING SIGNALS</th><th>FIT</th><th>STATUS</th><th></th></tr></thead><tbody>${filtered.map(p=>`<tr><td><b>${esc(p.company)}</b><small>${esc(p.contact||'Contact not added')} ${p.demo?'· Example':''}</small></td><td>${p.signals.map(s=>`<span class="signal">${esc(s)}</span>`).join('')||'<span class="muted">No signals recorded</span>'}</td><td><span class="score">${prospectScore(p)}</span></td><td><select data-status="${p.id}">${['To research','Ready','Contacted','Replied','Not a fit'].map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></td><td><button class="plain" data-prospect="${p.id}">View ↗</button></td></tr>`).join('')}</tbody></table>${filtered.length?'':`<div class="empty"><span>▤</span><h3>${state.prospects.length?'No matching prospects':'A great list starts with one company.'}</h3><p>Add companies you’ve researched, or load labeled examples to explore the workflow.</p></div>`}</div><p class="disclosure">No live contact discovery is connected. Example companies are fictional. Record source URLs and verify every buying signal before outreach. Messages are drafts; nothing is sent.</p>`;$('#offer').value=state.selected;$('#offer').onchange=e=>{state.selected=e.target.value;save();renderProspects()};$('#add').onclick=()=>prospectForm();$('#search').oninput=e=>{search=e.target.value;const pos=e.target.selectionStart;renderProspects();$('#search').focus();$('#search').setSelectionRange(pos,pos)};$('#hot').onclick=()=>{hot=!hot;renderProspects()};$('#sample').onclick=()=>{if(state.prospects.some(p=>p.demo)){toast('Examples are already in your list.');return}state.prospects.push(...['Lumen Goods (example)','Moss & Co (example)','Orbit Studio (example)'].map((company,n)=>({id:crypto.randomUUID(),company,contact:'',website:'',source:'',notes:'Fictional example for exploring the workflow.',signals:['Hiring marketers','Running paid ads','10–200 employees'].slice(0,3-n),status:'To research',demo:true})));save();renderProspects()};$('#csv').onclick=()=>download('launchpad-prospects.csv',csv([['Company','Contact','Website','Source','Signals','Fit score','Status','Notes','Example'],...filtered.map(p=>[p.company,p.contact,p.website,p.source,p.signals.join('; '),prospectScore(p),p.status,p.notes,p.demo?'Yes':'No'])]),'text/csv');document.querySelectorAll('[data-status]').forEach(s=>s.onchange=()=>{state.prospects.find(p=>p.id===s.dataset.status).status=s.value;save();renderProspects()});document.querySelectorAll('[data-prospect]').forEach(b=>b.onclick=()=>prospectDetail(b.dataset.prospect));}
-function prospectForm(existing){const p=existing||{};modal(`<h2>${p.id?'Edit':'Add'} prospect</h2><p class="muted">Add real observations from your own research.</p><form id="prospectform">${[['company','Company','text'],['contact','Contact name or role','text'],['website','Company website','url'],['source','Evidence source URL','url']].map(([key,label,type])=>`<label class="field"><span>${label}</span><input name="${key}" type="${type}" value="${esc(p[key]||'')}" ${key==='company'?'required':''} maxlength="500"></label>`).join('')}<fieldset><legend>Observed buying signals</legend>${['Recently funded','Hiring marketers','Running paid ads','10–200 employees'].map(s=>`<label class="check"><input type="checkbox" name="signals" value="${s}" ${p.signals?.includes(s)?'checked':''}>${s}</label>`).join('')}</fieldset><label class="field"><span>Research notes / specific needs</span><textarea name="notes" maxlength="4000">${esc(p.notes||'')}</textarea></label><button class="primary">Save prospect</button></form>`);$('#prospectform').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);const company=f.get('company').trim();if(!company){toast('Enter a company name.');return}const record={...p,...Object.fromEntries(f),company,signals:f.getAll('signals'),id:p.id||crypto.randomUUID(),status:p.status||'To research'};if(p.id)state.prospects=state.prospects.map(x=>x.id===p.id?record:x);else state.prospects.push(record);save();$('#modal').close();renderProspects()};}
-function prospectDetail(id){const p=state.prospects.find(x=>x.id===id);modal(`<div class="eyebrow">PROSPECT BRIEF ${p.demo?'· FICTIONAL EXAMPLE':''}</div><h2>${esc(p.company)}</h2><p>${esc(p.contact||'No contact recorded')}</p><h4>Evidence & research</h4><p>${esc(p.notes||'No notes yet.')}</p><p>${esc(p.source||'No evidence URL recorded.')}</p><div>${p.signals.map(s=>`<span class="signal">${esc(s)}</span>`).join('')}</div><p class="muted">Fit score ${prospectScore(p)}/100 = 30 base + 18 per recorded signal + 8 each for website and contact, capped at 100. This measures recorded completeness, not verified intent.</p><h4>Personalized outreach draft</h4><p class="muted">Review your observations, add your name, and edit before sending.</p><textarea id="draft" rows="12">${esc(current()?draft(p,current()):"Choose a researched business idea before drafting outreach.")}</textarea><div class="dialogactions"><button class="primary" id="downloadDraft">↓ Download draft</button><button id="edit">Edit prospect</button><button id="delete" class="danger">Delete</button></div>`);$('#downloadDraft').onclick=()=>download('outreach-draft.txt',$('#draft').value);$('#edit').onclick=()=>prospectForm(p);$('#delete').onclick=()=>{modal('<h2>Delete this prospect?</h2><p>This removes the prospect from this device.</p><button class="primary" id="confirmDelete">Delete prospect</button>');$('#confirmDelete').onclick=()=>{state.prospects=state.prospects.filter(x=>x.id!==id);save();$('#modal').close();renderProspects()}};}
-function exportReport(){
-  const ranked=rankIdeas(state.profile,80,'all',catalog());if(!ranked.length){toast('Generate a report from your profile first.');return;}
-  const body=`<!doctype html><html lang="en"><meta charset="utf-8"><title>My Launchpad Report</title><style>body{font:17px/1.7 system-ui;max-width:850px;margin:60px auto;padding:24px;color:#243c32}h1,h2{line-height:1.2}article{border-top:1px solid #ddd;padding:24px 0}small{color:#666}a{overflow-wrap:anywhere}</style><h1>Your personalized business research</h1><p>Researched ${esc(state.research.researchedAt)}. Scores and pricing are estimates; source evidence is not a guarantee of demand or revenue.</p><p>${esc(state.research.summary)}</p><h2>Your profile</h2>${Object.entries(state.profile).map(([k,v])=>`<p><b>${esc(k)}:</b> ${esc(v)}</p>`).join('')}<h2>Opportunities to explore</h2>${ranked.map(i=>`<article><h2>${esc(i.name)} · ${i.score}/100 estimated fit</h2><p>${esc(i.description)}</p><p><b>Why it fits:</b> ${esc(i.rationale)}</p><p><b>Buyers:</b> ${esc(i.buyer)}</p><p><b>Demand:</b> ${esc(i.demandEvidence)}</p><p><b>Competition:</b> ${esc(i.competitionEvidence)}</p><p><b>Pricing hypothesis:</b> ${esc(i.price)}. ${esc(i.pricingBasis)}</p><p><b>Effort:</b> ~${i.hours}h/week</p><p><b>First offer:</b> ${esc(i.deliver)}</p><p><b>Learn:</b> ${esc(i.learn)}</p><ol>${i.firstSteps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol><h3>Supporting evidence</h3>${sourcesHTML(i)}</article>`).join('')}</html>`;
-  download('my-launchpad-report.html',body,'text/html');
-}
-render();
-fetch('/api/research/status').then(r=>r.ok?r.json():Promise.reject()).then(data=>{apiConfigured=Boolean(data.configured);if(view!=='prospects'&&!busy)render()}).catch(()=>{apiConfigured=null});
